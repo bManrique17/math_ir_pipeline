@@ -8,16 +8,19 @@ hydra:
     dir: .
 
 db:
-  postgres_connection_string: postgresql://postgres:postgres@localhost:5438/math_ir
+  postgres_connection_string: postgresql://postgres:postgres@localhost:5432/math_ir
 
 bronze_schema_prefix: debug_bronze
 silver_schema_prefix: debug_silver
+gold_schema_prefix: debug_gold
 
 bronze_load_formulas: true
 bronze_load_posts: true
 
 silver_load_formulas: true
 silver_load_posts: true
+
+gold_load_formulas: true
 
 chunk_size: 50000
 
