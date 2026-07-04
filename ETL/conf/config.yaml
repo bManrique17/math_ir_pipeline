@@ -19,6 +19,8 @@ bronze_load_posts: true
 silver_load_formulas: true
 silver_load_posts: true
 
+chunk_size: 50000
+
 paths:
   raw_dir: DEBUG/data_arqmath/formulas
   posts_path: DEBUG/data_arqmath/posts/posts.xml

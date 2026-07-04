@@ -29,7 +29,7 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.bronze_load_posts:
         for source in cfg.post_sources:
-            load_bronze_posts(engine, source.table, source.path, schema=schema)
+            load_bronze_posts(engine, source.table, source.path, schema=schema, chunk_size=cfg.chunk_size)
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ def main(cfg: DictConfig) -> None:
             bronze_schema=cfg.bronze_schema_prefix,
             silver_schema=silver_schema,
             post_table=cfg.silver_post.post_table,
+            chunk_size=cfg.chunk_size,
         )
 
 
