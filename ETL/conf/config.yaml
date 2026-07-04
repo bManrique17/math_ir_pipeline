@@ -11,6 +11,7 @@ db:
   postgres_connection_string: postgresql://postgres:postgres@localhost:5438/math_ir
 
 schema_prefix: debug_bronze
+silver_schema_prefix: debug_silver
 
 load_formulas: true
 load_posts: true
@@ -30,3 +31,8 @@ formula_sources:
 post_sources:
   - table: post_arqmath
     path: ${paths.posts_path}
+
+silver_formula:
+  latex_table: latex_arqmath
+  p_mathml_table: slt_arqmath
+  c_mathml_table: opt_arqmath
