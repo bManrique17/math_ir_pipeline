@@ -1,0 +1,16 @@
+# docker pull postgres
+services:
+  postgres:
+    image: postgres
+    container_name: postgres_math_ir    
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: math_ir
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/home/ma5339/scratch/postgres
+
+volumes:
+  pgdata:

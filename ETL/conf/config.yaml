@@ -7,5 +7,8 @@ hydra:
   run:
     dir: .
 
+db:
+  postgres_connection_string: postgresql://postgres:postgres@localhost:5438/math_ir
+
 paths:
   raw_dir: data/raw
