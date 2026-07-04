@@ -8,15 +8,25 @@ hydra:
     dir: .
 
 db:
-  postgres_connection_string: postgresql://postgres:postgres@localhost:5438/math_ir  
+  postgres_connection_string: postgresql://postgres:postgres@localhost:5438/math_ir
+
+schema_prefix: debug_bronze
+
+load_formulas: true
+load_posts: true
 
 paths:
   raw_dir: DEBUG/data_arqmath/formulas
+  posts_path: DEBUG/data_arqmath/posts/posts.xml
 
-bronze_sources:
+formula_sources:
   - table: latex_arqmath
     dir: ${paths.raw_dir}/latex_representation_v3
   - table: slt_arqmath
     dir: ${paths.raw_dir}/slt_representation_v3
   - table: opt_arqmath
     dir: ${paths.raw_dir}/opt_representation_v3
+
+post_sources:
+  - table: post_arqmath
+    path: ${paths.posts_path}
