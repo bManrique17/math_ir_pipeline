@@ -3,3 +3,7 @@ hydra-core
 SQLAlchemy
 psycopg2-binary
 tqdm
+#for mathlib
+beautifulsoup4
+networkx
+lxml
