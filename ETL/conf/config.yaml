@@ -16,6 +16,9 @@ silver_schema_prefix: debug_silver
 bronze_load_formulas: true
 bronze_load_posts: true
 
+silver_load_formulas: true
+silver_load_posts: true
+
 paths:
   raw_dir: DEBUG/data_arqmath/formulas
   posts_path: DEBUG/data_arqmath/posts/posts.xml
@@ -36,3 +39,6 @@ silver_formula:
   latex_table: latex_arqmath
   p_mathml_table: slt_arqmath
   c_mathml_table: opt_arqmath
+
+silver_post:
+  post_table: post_arqmath
