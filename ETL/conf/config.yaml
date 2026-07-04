@@ -1,0 +1,11 @@
+defaults:
+  - _self_
+  - override hydra/job_logging: none
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+
+paths:
+  raw_dir: data/raw
