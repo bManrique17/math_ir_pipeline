@@ -5,7 +5,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from sqlalchemy import create_engine, text
 
-from ETL.etl.bronze_arqmath import load_bronze_source
+from ETL.etl.bronze_formulas_arqmath import load_bronze_source
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
