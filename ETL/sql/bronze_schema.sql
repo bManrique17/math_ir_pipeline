@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS {schema}.latex_arqmath (
     source_file   TEXT NOT NULL,
     ingested_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_latex_arqmath_id ON {schema}.latex_arqmath (id);
 
 CREATE TABLE IF NOT EXISTS {schema}.slt_arqmath (
     bronze_id     BIGSERIAL PRIMARY KEY,
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS {schema}.slt_arqmath (
     source_file   TEXT NOT NULL,
     ingested_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_slt_arqmath_id ON {schema}.slt_arqmath (id);
 
 CREATE TABLE IF NOT EXISTS {schema}.opt_arqmath (
     bronze_id     BIGSERIAL PRIMARY KEY,
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS {schema}.opt_arqmath (
     source_file   TEXT NOT NULL,
     ingested_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_opt_arqmath_id ON {schema}.opt_arqmath (id);
 
 CREATE TABLE IF NOT EXISTS {schema}.post_arqmath (
     bronze_id                BIGSERIAL PRIMARY KEY,
