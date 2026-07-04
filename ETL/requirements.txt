@@ -2,3 +2,4 @@ pandas
 hydra-core
 SQLAlchemy
 psycopg2-binary
+tqdm
