@@ -24,7 +24,7 @@ def main(cfg: DictConfig) -> None:
 
     build_silver_formulas(
         engine,
-        bronze_schema=cfg.schema_prefix,
+        bronze_schema=cfg.bronze_schema_prefix,
         silver_schema=silver_schema,
         latex_table=cfg.silver_formula.latex_table,
         p_mathml_table=cfg.silver_formula.p_mathml_table,

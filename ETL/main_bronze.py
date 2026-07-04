@@ -18,16 +18,16 @@ SQL_DIR = Path(__file__).parent / "sql"
 def main(cfg: DictConfig) -> None:
 
     engine = create_engine(cfg.db.postgres_connection_string)
-    schema = cfg.schema_prefix
+    schema = cfg.bronze_schema_prefix
 
     with engine.begin() as conn:
         conn.execute(text((SQL_DIR / "bronze_schema.sql").read_text().format(schema=schema)))
 
-    if cfg.load_formulas:
+    if cfg.bronze_load_formulas:
         for source in cfg.formula_sources:
             load_bronze_formulas(engine, source.table, source.dir, schema=schema)
 
-    if cfg.load_posts:
+    if cfg.bronze_load_posts:
         for source in cfg.post_sources:
             load_bronze_posts(engine, source.table, source.path, schema=schema)
 

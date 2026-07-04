@@ -10,11 +10,11 @@ hydra:
 db:
   postgres_connection_string: postgresql://postgres:postgres@localhost:5438/math_ir
 
-schema_prefix: debug_bronze
+bronze_schema_prefix: debug_bronze
 silver_schema_prefix: debug_silver
 
-load_formulas: true
-load_posts: true
+bronze_load_formulas: true
+bronze_load_posts: true
 
 paths:
   raw_dir: DEBUG/data_arqmath/formulas
