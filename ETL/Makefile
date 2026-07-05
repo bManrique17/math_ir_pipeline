@@ -1,4 +1,4 @@
-.PHONY: install clean reinstall bronze silver gold
+.PHONY: install clean reinstall bronze silver gold update-silver-posts
 
 install:
 	bash bin/set_env.sh
@@ -16,3 +16,6 @@ silver:
 
 gold:
 	PYTHONPATH=.. python main_gold.py
+
+update-silver-posts:
+	PYTHONPATH=.. python main_update_silver_posts.py
