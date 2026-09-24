@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_NAME="etl"
+ENV_NAME="webapp_backend"
 REQ_FILE="requirements.txt"
+
+if ! command -v conda >/dev/null 2>&1; then
+  echo "conda is not available on PATH. Please install Miniconda/Anaconda and retry." >&2
+  exit 1
+fi
 
 if ! conda info --envs | awk '{print $1}' | grep -qx "$ENV_NAME"; then
   conda create -y -n "$ENV_NAME" python=3.12

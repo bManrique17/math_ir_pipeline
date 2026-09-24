@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_NAME="etl"
+ENV_NAME="llama_server"
 REQ_FILE="requirements.txt"
 
 if ! conda info --envs | awk '{print $1}' | grep -qx "$ENV_NAME"; then
