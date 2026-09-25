@@ -60,3 +60,6 @@ descriptors:
   write_buffer_size: 50
   limit: null
   overwrite: false
+  concurrency: 4
+  stale_claim_minutes: 30
+  worker_id: null

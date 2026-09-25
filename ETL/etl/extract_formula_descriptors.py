@@ -14,10 +14,17 @@ being left untouched, so stale values (e.g. from a previous run, surfaced via
 overwrite=True) don't linger. This also keeps NULL meaning strictly "not yet
 processed" while {} means "processed, no formulas found".
 
-Rows are only ever selected when formula_descriptors IS NULL by default, so this
-step is resumable: re-running it after a crash or interruption picks up where it
-left off, and rows whose LLM call failed are left untouched (and logged) so they
-get retried on the next run.
+Rows are claimed in batches with `SELECT ... FOR UPDATE SKIP LOCKED`, stamping
+formula_descriptors_claimed_at/_by, so this step is both resumable and safe to run
+as several concurrent workers (same machine or different ones, each pointed at the
+same Postgres) without two workers processing the same row. A claim that goes
+stale (worker crashed mid-batch) is picked back up by anyone after
+`stale_claim_minutes`. Within a single worker, up to `concurrency` LLM calls are
+in flight at once via a thread pool, since Ollama itself can serve concurrent
+generate() calls.
+
+Rows whose LLM call failed are unclaimed immediately (and logged) so they get
+retried without waiting for the staleness timeout.
 
 Promoted from the standalone prototype at
 DEBUG/extract_formula_descriptors/extract_descriptors_standalone.py.
@@ -25,10 +32,13 @@ DEBUG/extract_formula_descriptors/extract_descriptors_standalone.py.
 
 import json
 import logging
+import os
 import re
 import socket
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
 
 import ollama
 import requests
@@ -43,6 +53,8 @@ POST_TABLE = "post_arqmath"
 ID_COLUMN = "silver_id"
 TEXT_COLUMN = "normalized_text_placeholders_formula_id"
 OUTPUT_COLUMN = "formula_descriptors"
+CLAIM_COLUMN = "formula_descriptors_claimed_at"
+CLAIM_BY_COLUMN = "formula_descriptors_claimed_by"
 
 SYSTEM_PROMPT = (
     "You are a mathematical expert. You can link formulas with their description "
@@ -88,8 +100,6 @@ class _Pairs(BaseModel):
 
 
 def _start_ollama(gpu_id: int, port: int) -> subprocess.Popen:
-    import os
-
     env = {k: v for k, v in os.environ.items()}
     env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     env["OLLAMA_HOST"] = f"127.0.0.1:{port}"
@@ -135,11 +145,10 @@ def _ensure_model(ollama_host: str, model: str) -> None:
 
 def _get_formula_descriptors(
     passage_text: str,
+    client: ollama.Client,
     ollama_model: str,
-    ollama_host: str,
     num_ctx: int,
 ) -> dict[str, list[str]]:
-    client = ollama.Client(host=ollama_host)
     response = client.generate(
         model=ollama_model,
         system=SYSTEM_PROMPT,
@@ -164,22 +173,84 @@ def _get_formula_descriptors(
 # ---------------------------------------------------------------------------
 
 
-def _fetch_passages(
-    engine: Engine,
-    silver_schema: str,
-    overwrite: bool,
-    limit: int | None,
-) -> list[tuple[int, str]]:
+def _ensure_claim_columns(engine: Engine, silver_schema: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"ALTER TABLE {silver_schema}.{POST_TABLE} "
+                f"ADD COLUMN IF NOT EXISTS {CLAIM_COLUMN} TIMESTAMPTZ"
+            )
+        )
+        conn.execute(
+            text(
+                f"ALTER TABLE {silver_schema}.{POST_TABLE} "
+                f"ADD COLUMN IF NOT EXISTS {CLAIM_BY_COLUMN} TEXT"
+            )
+        )
+        # Partial index over still-pending rows so claiming stays cheap even
+        # late in a run, when most of the table is already done.
+        conn.execute(
+            text(
+                f"CREATE INDEX IF NOT EXISTS idx_{POST_TABLE}_descriptors_pending "
+                f"ON {silver_schema}.{POST_TABLE} (silver_id) "
+                f"WHERE {OUTPUT_COLUMN} IS NULL AND {TEXT_COLUMN} IS NOT NULL"
+            )
+        )
+
+
+def _count_pending(engine: Engine, silver_schema: str, overwrite: bool, limit: int | None) -> int:
     where = f"{TEXT_COLUMN} IS NOT NULL"
     if not overwrite:
         where += f" AND {OUTPUT_COLUMN} IS NULL"
-    query = f"SELECT {ID_COLUMN}, {TEXT_COLUMN} FROM {silver_schema}.{POST_TABLE} WHERE {where}"
-    if limit is not None:
-        query += f" LIMIT {limit}"
-
+    query = f"SELECT COUNT(*) FROM {silver_schema}.{POST_TABLE} WHERE {where}"
     with engine.connect() as conn:
-        rows = conn.execute(text(query)).fetchall()
+        count = conn.execute(text(query)).scalar_one()
+    return count if limit is None else min(count, limit)
+
+
+def _claim_batch(
+    engine: Engine,
+    silver_schema: str,
+    overwrite: bool,
+    batch_size: int,
+    stale_after: timedelta,
+    worker_id: str,
+) -> list[tuple[int, str]]:
+    """Atomically claim up to batch_size unclaimed pending rows for this worker.
+
+    Safe to call concurrently from multiple processes/machines: FOR UPDATE SKIP
+    LOCKED means two callers never claim the same row, and the claim timestamp
+    lets a stale claim (crashed worker) be picked up again after stale_after.
+    """
+    output_check = "TRUE" if overwrite else f"{OUTPUT_COLUMN} IS NULL"
+    query = text(
+        f"WITH claimed AS ("
+        f"  SELECT {ID_COLUMN} FROM {silver_schema}.{POST_TABLE}"
+        f"  WHERE {TEXT_COLUMN} IS NOT NULL"
+        f"    AND ({output_check})"
+        f"    AND ({CLAIM_COLUMN} IS NULL OR {CLAIM_COLUMN} < now() - :stale_after)"
+        f"  ORDER BY {ID_COLUMN}"
+        f"  LIMIT :batch_size"
+        f"  FOR UPDATE SKIP LOCKED"
+        f") "
+        f"UPDATE {silver_schema}.{POST_TABLE} p "
+        f"SET {CLAIM_COLUMN} = now(), {CLAIM_BY_COLUMN} = :worker_id "
+        f"FROM claimed WHERE p.{ID_COLUMN} = claimed.{ID_COLUMN} "
+        f"RETURNING p.{ID_COLUMN}, p.{TEXT_COLUMN}"
+    )
+    with engine.begin() as conn:
+        rows = conn.execute(
+            query, {"batch_size": batch_size, "stale_after": stale_after, "worker_id": worker_id}
+        ).fetchall()
     return [(row[0], row[1]) for row in rows]
+
+
+def _unclaim(engine: Engine, silver_schema: str, sid: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(f"UPDATE {silver_schema}.{POST_TABLE} SET {CLAIM_COLUMN} = NULL WHERE {ID_COLUMN} = :sid"),
+            {"sid": sid},
+        )
 
 
 def _flush(engine: Engine, silver_schema: str, buf: list[tuple[int, dict]]) -> None:
@@ -211,12 +282,22 @@ def build_formula_descriptors(
     write_buffer_size: int = 50,
     limit: int | None = None,
     overwrite: bool = False,
+    concurrency: int = 4,
+    stale_claim_minutes: int = 30,
+    worker_id: str | None = None,
 ) -> int:
     ollama_host = f"http://127.0.0.1:{ollama_port}"
+    worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}"
+    stale_after = timedelta(minutes=stale_claim_minutes)
 
-    passages = _fetch_passages(engine, silver_schema, overwrite, limit)
-    print(f">>Found {len(passages)} passages to process for {silver_schema}.{POST_TABLE}.{OUTPUT_COLUMN}")
-    if not passages:
+    _ensure_claim_columns(engine, silver_schema)
+
+    # Informational only: if other workers are running concurrently against the
+    # same schema, this count (and the progress bar built from it) is a snapshot,
+    # not this worker's exact share of the work.
+    pending = _count_pending(engine, silver_schema, overwrite, limit)
+    print(f">>Found {pending} passages to process for {silver_schema}.{POST_TABLE}.{OUTPUT_COLUMN}")
+    if not pending:
         return 0
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -229,34 +310,52 @@ def build_formula_descriptors(
     try:
         _wait_for_ollama(ollama_host)
         _ensure_model(ollama_host, ollama_model)
+        client = ollama.Client(host=ollama_host)
 
-        write_buffer: list[tuple[int, dict]] = []
         total_written = 0
-        with tqdm(total=len(passages), desc="extract_formula_descriptors", unit="passage") as pbar:
-            for sid, passage_text in passages:
-                if not _FORMULA_RE.search(passage_text):
-                    # No formula placeholders: explicitly write {} instead of leaving it
-                    # untouched, so a stale value from an earlier overwrite run doesn't linger.
-                    write_buffer.append((sid, {}))
-                else:
-                    try:
-                        descriptor_map = _get_formula_descriptors(
-                            passage_text, ollama_model, ollama_host, num_ctx
-                        )
-                        write_buffer.append((sid, descriptor_map))
-                    except Exception:
-                        logger.warning("Descriptor extraction failed for silver_id=%s", sid, exc_info=True)
-                        # Leave the existing value (if any) untouched so this row is retried next run.
-                        pbar.update(1)
-                        continue
+        remaining = limit
+        with tqdm(total=pending, desc="extract_formula_descriptors", unit="passage") as pbar:
+            with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                while remaining is None or remaining > 0:
+                    batch_size = write_buffer_size if remaining is None else min(write_buffer_size, remaining)
+                    batch = _claim_batch(
+                        engine, silver_schema, overwrite, batch_size, stale_after, worker_id
+                    )
+                    if not batch:
+                        break
 
-                pbar.update(1)
-                if len(write_buffer) >= write_buffer_size:
+                    write_buffer: list[tuple[int, dict]] = []
+                    futures: dict = {}
+                    for sid, passage_text in batch:
+                        if not _FORMULA_RE.search(passage_text):
+                            # No formula placeholders: explicitly write {} instead of leaving
+                            # it untouched, so a stale value from an earlier overwrite run
+                            # doesn't linger.
+                            write_buffer.append((sid, {}))
+                            pbar.update(1)
+                        else:
+                            future = pool.submit(
+                                _get_formula_descriptors, passage_text, client, ollama_model, num_ctx
+                            )
+                            futures[future] = sid
+
+                    for future in as_completed(futures):
+                        sid = futures[future]
+                        try:
+                            descriptor_map = future.result()
+                            write_buffer.append((sid, descriptor_map))
+                        except Exception:
+                            logger.warning("Descriptor extraction failed for silver_id=%s", sid, exc_info=True)
+                            # Unclaim so this row is retried on the next batch/run instead of
+                            # waiting for the staleness timeout.
+                            _unclaim(engine, silver_schema, sid)
+                        pbar.update(1)
+
                     total_written += len(write_buffer)
                     _flush(engine, silver_schema, write_buffer)
+                    if remaining is not None:
+                        remaining -= len(batch)
 
-        total_written += len(write_buffer)
-        _flush(engine, silver_schema, write_buffer)
         return total_written
     finally:
         if ollama_proc is not None:

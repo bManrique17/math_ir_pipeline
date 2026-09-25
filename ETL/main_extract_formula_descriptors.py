@@ -28,6 +28,9 @@ def main(cfg: DictConfig) -> None:
         write_buffer_size=cfg.descriptors.write_buffer_size,
         limit=cfg.descriptors.limit,
         overwrite=cfg.descriptors.overwrite,
+        concurrency=cfg.descriptors.concurrency,
+        stale_claim_minutes=cfg.descriptors.stale_claim_minutes,
+        worker_id=cfg.descriptors.worker_id,
     )
     print(f">>Formula descriptors written: {n}")
 

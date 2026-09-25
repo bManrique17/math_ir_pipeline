@@ -26,3 +26,10 @@ CREATE TABLE IF NOT EXISTS {schema}.post_arqmath (
     normalized_text_placeholders_fk_gold_formula   TEXT,
     ingested_at                                    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Added for concurrent/distributed formula-descriptor extraction workers.
+ALTER TABLE {schema}.post_arqmath ADD COLUMN IF NOT EXISTS formula_descriptors_claimed_at TIMESTAMPTZ;
+ALTER TABLE {schema}.post_arqmath ADD COLUMN IF NOT EXISTS formula_descriptors_claimed_by TEXT;
+CREATE INDEX IF NOT EXISTS idx_post_arqmath_descriptors_pending
+    ON {schema}.post_arqmath (silver_id)
+    WHERE formula_descriptors IS NULL AND normalized_text_placeholders_formula_id IS NOT NULL;

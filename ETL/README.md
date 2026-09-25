@@ -61,6 +61,38 @@ pairs from the post text, writing `{formula_id_str: [sentence, ...]}` back into
 `formula_descriptors`. Resumable — only unprocessed rows are selected by
 default; pass `overwrite: true` (see config below) to reprocess everything.
 
+Rows are claimed in batches (`SELECT ... FOR UPDATE SKIP LOCKED`, stamping
+`formula_descriptors_claimed_at`/`_by`), and within one worker up to
+`descriptors.concurrency` LLM calls run at once via a thread pool, since Ollama
+itself serves concurrent `generate()` calls. A claim goes stale (and is picked
+up by any worker) after `descriptors.stale_claim_minutes`, so a crashed worker
+never permanently blocks its rows; a row whose LLM call fails is unclaimed
+immediately for a fast retry instead of waiting out the staleness timeout.
+
+This makes it safe to run several workers concurrently against the same
+Postgres — 2.5M posts is too slow for one sequential worker, so scale out
+instead of waiting:
+
+- **Same machine, same GPU**: just bump `descriptors.concurrency` — more
+  in-flight requests against the one Ollama server.
+- **Same machine, multiple GPUs**: run one `make`/`main_extract_formula_descriptors.py`
+  invocation per GPU, each with its own `descriptors.ollama_gpu` and a distinct
+  `descriptors.ollama_port` (each spins up its own Ollama server).
+- **Different machines**: same as above, run on each host, as long as every
+  host's `db.postgres_connection_string` points at the same reachable Postgres
+  (needs `listen_addresses`/`pg_hba.conf` set up for remote connections). No
+  extra coordination needed — the claim mechanism handles it.
+
+```bash
+# host/GPU A
+PYTHONPATH=.. python main_extract_formula_descriptors.py \
+    descriptors.ollama_gpu=0 descriptors.ollama_port=11434 descriptors.worker_id=gpu0
+
+# host/GPU B, run at the same time
+PYTHONPATH=.. python main_extract_formula_descriptors.py \
+    descriptors.ollama_gpu=1 descriptors.ollama_port=11435 descriptors.worker_id=gpu1
+```
+
 ### `annotate-opt` — post-context-aware OPT annotation
 
 The step this pipeline was extended for. For every post, every formula it
@@ -104,9 +136,12 @@ backfilled by `gold`. Unresolved formulas become `-1`.
 | `descriptors.ollama_gpu` | `CUDA_VISIBLE_DEVICES` index for the managed Ollama server |
 | `descriptors.ollama_port` | port for the managed Ollama server (reused if already listening) |
 | `descriptors.num_ctx` | LLM context window size |
-| `descriptors.write_buffer_size` | rows buffered before flushing to Postgres |
+| `descriptors.write_buffer_size` | rows claimed and flushed to Postgres per batch |
 | `descriptors.limit` | cap rows processed per run (`null` = no cap) |
 | `descriptors.overwrite` | reprocess rows that already have `formula_descriptors` |
+| `descriptors.concurrency` | concurrent in-flight LLM calls per worker (thread pool size) |
+| `descriptors.stale_claim_minutes` | minutes before an unfinished claim (crashed worker) is picked up again |
+| `descriptors.worker_id` | label stamped into `formula_descriptors_claimed_by`; auto (`hostname:pid`) if `null` |
 
 Override any key on the command line, Hydra-style: `key=value`, dotted for
 nested keys (e.g. `descriptors.ollama_model=llama3.2:1b`).
