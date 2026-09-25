@@ -1,6 +1,12 @@
 import { useState } from "react";
 
-export default function SearchBar({ onSearch, onClear, searchActive }) {
+export default function SearchBar({
+  onSearch,
+  onClear,
+  searchActive,
+  placeholder = "Search by silver_id",
+  clearLabel = "Check full list again",
+}) {
   const [value, setValue] = useState("");
 
   const handleSubmit = (e) => {
@@ -10,12 +16,12 @@ export default function SearchBar({ onSearch, onClear, searchActive }) {
   };
 
   return (
-    <form className="d-flex align-items-center gap-2 mb-4" onSubmit={handleSubmit}>
+    <form className="d-flex align-items-center gap-2" onSubmit={handleSubmit}>
       <input
         type="number"
         className="form-control"
         style={{ maxWidth: "240px" }}
-        placeholder="Search by silver_id"
+        placeholder={placeholder}
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />
@@ -24,7 +30,7 @@ export default function SearchBar({ onSearch, onClear, searchActive }) {
       </button>
       {searchActive && (
         <button type="button" className="btn btn-outline-secondary" onClick={onClear}>
-          Check full list again
+          {clearLabel}
         </button>
       )}
     </form>

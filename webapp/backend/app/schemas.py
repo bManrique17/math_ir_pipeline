@@ -32,3 +32,26 @@ class PostOut(BaseModel):
 class PostListOut(BaseModel):
     items: list[PostOut]
     has_more: bool
+
+
+class FormulaGraphSvgOut(BaseModel):
+    available: bool
+    annotated: bool = False
+    svg: str | None = None
+
+
+class FormulaGraphOut(BaseModel):
+    id: int
+    latex: str | None
+    opt: FormulaGraphSvgOut
+    slt: FormulaGraphSvgOut
+
+
+class FormulaListItemOut(BaseModel):
+    id: int
+    latex: str | None = None
+
+
+class FormulaListOut(BaseModel):
+    items: list[FormulaListItemOut]
+    has_more: bool

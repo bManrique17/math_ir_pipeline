@@ -7,3 +7,7 @@ tqdm
 beautifulsoup4
 networkx
 lxml
+#for extract_formula_descriptors
+ollama>=0.2.0
+requests>=2.31.0
+pydantic>=2.0.0

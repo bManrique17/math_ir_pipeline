@@ -22,6 +22,10 @@ silver_load_posts: true
 
 gold_load_formulas: true
 
+descriptors_load_formula_descriptors: true
+
+silver_load_opt_annotations: true
+
 chunk_size: 50000
 
 paths:
@@ -47,3 +51,12 @@ silver_formula:
 
 silver_post:
   post_table: post_arqmath
+
+descriptors:
+  ollama_model: llama3.2:3b
+  ollama_gpu: 0
+  ollama_port: 11434
+  num_ctx: 1024
+  write_buffer_size: 50
+  limit: null
+  overwrite: false

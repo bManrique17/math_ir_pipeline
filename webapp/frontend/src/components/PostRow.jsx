@@ -1,4 +1,3 @@
-import DescriptorsTable from "./DescriptorsTable";
 import FormulaTable from "./FormulaTable";
 import PostText from "./PostText";
 
@@ -13,13 +12,9 @@ export default function PostRow({ post }) {
           <h6 className="text-uppercase text-muted small">Post</h6>
           <PostText content={post.content} />
         </div>
-        <div className="col-md-4 p-3 border-end">
+        <div className="col-md-7 p-3">
           <h6 className="text-uppercase text-muted small">Formulas</h6>
-          <FormulaTable formulas={post.formulas} />
-        </div>
-        <div className="col-md-3 p-3">
-          <h6 className="text-uppercase text-muted small">Descriptors</h6>
-          <DescriptorsTable descriptors={post.descriptors} />
+          <FormulaTable formulas={post.formulas} descriptors={post.descriptors} />
         </div>
       </div>
     </div>
