@@ -63,3 +63,8 @@ descriptors:
   concurrency: 4
   stale_claim_minutes: 30
   worker_id: null
+
+vocab:
+  dataset_id: 1
+  comments: null
+  overwrite: false

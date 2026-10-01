@@ -55,3 +55,22 @@ class FormulaListItemOut(BaseModel):
 class FormulaListOut(BaseModel):
     items: list[FormulaListItemOut]
     has_more: bool
+
+
+class VocabOut(BaseModel):
+    id: int
+    dataset_id: int
+    dataset_name: str | None = None
+    comments: str | None = None
+    slt: dict[str, str] | None = None
+    opt: dict[str, str] | None = None
+    slt_inverted: dict[str, int] | None = None
+    opt_inverted: dict[str, int] | None = None
+    slt_count: dict[str, int] | None = None
+    opt_count: dict[str, int] | None = None
+    slt_edge: dict[str, str] | None = None
+    opt_edge: dict[str, str] | None = None
+    slt_edge_inverted: dict[str, int] | None = None
+    opt_edge_inverted: dict[str, int] | None = None
+    slt_edge_count: dict[str, int] | None = None
+    opt_edge_count: dict[str, int] | None = None

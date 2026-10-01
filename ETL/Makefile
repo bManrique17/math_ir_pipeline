@@ -1,4 +1,4 @@
-.PHONY: install clean reinstall bronze silver extract-descriptors gold annotate-opt update-silver-posts
+.PHONY: install clean reinstall bronze silver extract-descriptors gold annotate-opt update-silver-posts create-vocab
 
 install:
 	bash bin/set_env.sh
@@ -25,3 +25,6 @@ annotate-opt:
 
 update-silver-posts:
 	PYTHONPATH=.. python main_update_silver_posts.py
+
+create-vocab:
+	PYTHONPATH=.. python main_create_vocab.py

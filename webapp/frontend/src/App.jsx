@@ -4,6 +4,7 @@ import FormulaGraphPage from "./components/FormulaGraphPage";
 import FormulaListView from "./components/FormulaListView";
 import PostListView from "./components/PostListView";
 import TopBar from "./components/TopBar";
+import VocabView from "./components/VocabView";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/" element={<PostListView />} />
         <Route path="/formulas" element={<FormulaListView />} />
         <Route path="/formula/:id" element={<FormulaGraphPage />} />
+        <Route path="/vocab" element={<VocabView />} />
       </Routes>
     </>
   );

@@ -18,6 +18,11 @@ export default function TopBar() {
               Formulas
             </NavLink>
           </li>
+          <li className="nav-item">
+            <NavLink to="/vocab" className={tabClass}>
+              Vocab
+            </NavLink>
+          </li>
         </ul>
       </div>
     </nav>

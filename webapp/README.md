@@ -1,6 +1,6 @@
 # Formula Descriptors Viewer
 
-Two tabs (top nav):
+Three tabs (top nav):
 
 - **Posts** (`/`) — `{schema}.post_arqmath` rows: the post text (formulas
   rendered via MathJax) and, in one merged table, every formula referenced in
@@ -11,6 +11,9 @@ Two tabs (top nav):
   Two independent search bars: search by formula id, or filter to the formulas
   referenced by a given post id (reuses the Posts-tab post lookup under the
   hood).
+- **Vocab** (`/vocab`) — search a `public.vocab` row by id (built by
+  `ETL/main_create_vocab.py` / `make create-vocab`): its dataset and comments,
+  plus SLT/OPT node and edge vocabs as id -> token -> count tables.
 
 Every formula row, in either tab, links to `/formula/:id` — its OPT (operator
 tree) and SLT (symbol layout tree) graphs from the gold layer, rendered
@@ -48,6 +51,7 @@ Configurable via env vars (defaults match `ETL/conf/config.yaml`):
 - `GET /api/posts?offset=&limit=`, `GET /api/posts/{silver_id}`
 - `GET /api/formulas?offset=&limit=`, `GET /api/formulas/{id}`
 - `GET /api/formulas/{id}/graph` -- `{id, latex, opt: {available, annotated, svg}, slt: {available, svg}}`
+- `GET /api/vocab/{id}` -- the `public.vocab` row plus `dataset_name` (always `public`, independent of `PG_SCHEMA`)
 
 ## Frontend (React + Vite + Bootstrap)
 

@@ -31,12 +31,14 @@ make gold                # silver -> gold.formula (opt_nx_dict/slt_nx_dict); bac
 make extract-descriptors # LLM-extracted formula_descriptors on silver.post_arqmath
 make annotate-opt        # builds silver.formula_arqmath.opt_nx_dict_annotated
 make update-silver-posts # fk_gold placeholders in post text
+make create-vocab        # SLT/OPT node + edge vocabs for one dataset -> public.vocab
 ```
 
 Ordering constraints:
 - `silver`'s two sub-steps (formulas, then posts) always run together, formulas first — posts need the formula id -> visual_id map.
 - `gold` must run before `extract-descriptors`, `annotate-opt`, and `update-silver-posts` (all three depend on `fk_gold_formula` and/or the gold formula table).
 - `annotate-opt` must run after **both** `gold` (for the OPT trees) and `extract-descriptors` (for the sentences to annotate with) — it's what actually does the work described below.
+- `create-vocab` needs `gold` plus the dataset's rows in `public.dataset` / `public.datasetxgold_formula` (always reads `gold.formula`, whatever `gold_schema_prefix` is, since that's what the link table's FK points to).
 - `update-silver-posts` only needs `gold`; its relative order vs. `extract-descriptors`/`annotate-opt` doesn't matter.
 
 To re-run a single stage directly (e.g. against a non-default schema or chunk
