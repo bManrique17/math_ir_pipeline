@@ -54,3 +54,19 @@ def get_formula_graph(id: int) -> FormulaGraphOut:
         raise HTTPException(status_code=404, detail=f"formula id {id} not found")
 
     return FormulaGraphOut(**build_formula_graph_view(row))
+
+
+# Retrieval results are gold.formula ids (not PG_GOLD_SCHEMA's), so the schema is
+# fixed here. No silver occurrence is involved, so OPT is always the raw gold tree.
+_SELECT_GOLD_FORMULA_GRAPH = "SELECT id, latex, opt_nx_dict, slt_nx_dict FROM gold.formula WHERE id = :id"
+
+
+@router.get("/gold_formulas/{id}/graph", response_model=FormulaGraphOut)
+def get_gold_formula_graph(id: int) -> FormulaGraphOut:
+    with engine.connect() as conn:
+        row = conn.execute(text(_SELECT_GOLD_FORMULA_GRAPH), {"id": id}).fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"gold formula id {id} not found")
+
+    return FormulaGraphOut(**build_formula_graph_view(row))

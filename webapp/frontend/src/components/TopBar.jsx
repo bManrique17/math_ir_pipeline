@@ -23,6 +23,16 @@ export default function TopBar() {
               Vocab
             </NavLink>
           </li>
+          <li className="nav-item">
+            <NavLink to="/retrieval" className={tabClass}>
+              Formula retrieval
+            </NavLink>
+          </li>
+          <li className="nav-item">
+            <NavLink to="/multimodal_retrieval" className={tabClass}>
+              Multimodal retrieval
+            </NavLink>
+          </li>
         </ul>
       </div>
     </nav>

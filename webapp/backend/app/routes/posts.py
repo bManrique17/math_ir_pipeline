@@ -15,10 +15,10 @@ _SELECT_POST = (
 _MAX_LIMIT = 100
 
 
-def _load_latex(ids: set[int]) -> dict[int, str]:
+def _load_latex(ids: set[int], schema: str = PG_SCHEMA) -> dict[int, str]:
     if not ids:
         return {}
-    query = text(f"SELECT id, latex FROM {PG_SCHEMA}.formula_arqmath WHERE id = ANY(:ids)")
+    query = text(f"SELECT id, latex FROM {schema}.formula_arqmath WHERE id = ANY(:ids)")
     with engine.connect() as conn:
         rows = conn.execute(query, {"ids": list(ids)}).fetchall()
     return {row.id: row.latex for row in rows}

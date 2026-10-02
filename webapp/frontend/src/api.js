@@ -59,3 +59,34 @@ export async function fetchVocabById(id) {
   }
   return res.json();
 }
+
+export async function fetchRetrieval(latex, topK) {
+  const params = new URLSearchParams({ latex, top_k: topK });
+  const res = await fetch(`${BASE_URL}/retrieval?${params}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `Failed to retrieve formulas (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchGoldFormulaGraph(id) {
+  const res = await fetch(`${BASE_URL}/gold_formulas/${id}/graph`);
+  if (res.status === 404) {
+    throw new Error(`No gold formula found with id ${id}`);
+  }
+  if (!res.ok) {
+    throw new Error(`Failed to load formula graph (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchMultimodalRetrieval(query, topK) {
+  const params = new URLSearchParams({ query, top_k: topK });
+  const res = await fetch(`${BASE_URL}/multimodal_retrieval?${params}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `Failed to retrieve posts (${res.status})`);
+  }
+  return res.json();
+}

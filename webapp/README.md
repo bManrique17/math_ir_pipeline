@@ -1,6 +1,6 @@
 # Formula Descriptors Viewer
 
-Three tabs (top nav):
+Five tabs (top nav):
 
 - **Posts** (`/`) — `{schema}.post_arqmath` rows: the post text (formulas
   rendered via MathJax) and, in one merged table, every formula referenced in
@@ -14,6 +14,17 @@ Three tabs (top nav):
 - **Vocab** (`/vocab`) — search a `public.vocab` row by id (built by
   `ETL/main_create_vocab.py` / `make create-vocab`): its dataset and comments,
   plus SLT/OPT node and edge vocabs as id -> token -> count tables.
+- **Formula retrieval** (`/retrieval`) — LaTeX query + top k, sent to the
+  external retrieval service (`RETRIEVAL_URL`); shows the ranked
+  `gold.formula` ids with their score and rendered LaTeX; "View graph" opens
+  `/gold_formula/:id` (same graph page, raw gold OPT/SLT trees).
+- **Multimodal retrieval** (`/multimodal_retrieval`) — free-text query with
+  `$latex$` formulas, sent to the retrieval service's
+  `retrieve_multimodal_posts`; shows how the query was split (formulas / text)
+  and the ranked posts with their combined, formula and text scores. Post
+  text is rendered like the Posts tab, from `silver.post_arqmath` /
+  `silver.formula_arqmath` (always `silver`, independent of `PG_SCHEMA`, since
+  those are the ids the service returns).
 
 Every formula row, in either tab, links to `/formula/:id` — its OPT (operator
 tree) and SLT (symbol layout tree) graphs from the gold layer, rendered
@@ -45,12 +56,16 @@ Configurable via env vars (defaults match `ETL/conf/config.yaml`):
 - `PG_DSN` (default `postgresql://postgres:postgres@localhost:5432/math_ir`)
 - `PG_SCHEMA` (default `debug_silver`) -- `post_arqmath` / `formula_arqmath`
 - `PG_GOLD_SCHEMA` (default `debug_gold`) -- joined in for `opt_nx_dict`/`slt_nx_dict` on the formula graph view
+- `RETRIEVAL_URL` (default `http://localhost:8008`) -- retrieval service behind `/api/retrieval` (`GET /retrieve_isolated_formula?latex=&top_k=`)
 
 ### API
 
 - `GET /api/posts?offset=&limit=`, `GET /api/posts/{silver_id}`
 - `GET /api/formulas?offset=&limit=`, `GET /api/formulas/{id}`
 - `GET /api/formulas/{id}/graph` -- `{id, latex, opt: {available, annotated, svg}, slt: {available, svg}}`
+- `GET /api/gold_formulas/{id}/graph` -- same shape as above, for a `gold.formula` id (raw OPT, never annotated)
+- `GET /api/retrieval?latex=&top_k=` -- `{latex, results: [{rank, formula_id, score, latex}]}`; proxies `RETRIEVAL_URL` and joins `gold.formula` (always `gold`, independent of `PG_GOLD_SCHEMA`) for the LaTeX
+- `GET /api/multimodal_retrieval?query=&top_k=` -- `{query, formulas, text_query, results: [{rank, silver_post_id, post_id, post_type_id, score, formula_score, text_score, text, content}]}`; proxies `RETRIEVAL_URL`, `content` is the post as text/formula segments from `silver` (null if the post isn't there)
 - `GET /api/vocab/{id}` -- the `public.vocab` row plus `dataset_name` (always `public`, independent of `PG_SCHEMA`)
 
 ## Frontend (React + Vite + Bootstrap)

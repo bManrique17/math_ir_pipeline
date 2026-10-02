@@ -74,3 +74,36 @@ class VocabOut(BaseModel):
     opt_edge_inverted: dict[str, int] | None = None
     slt_edge_count: dict[str, int] | None = None
     opt_edge_count: dict[str, int] | None = None
+
+
+class RetrievalResultOut(BaseModel):
+    rank: int
+    formula_id: int
+    score: float
+    latex: str | None = None
+
+
+class RetrievalOut(BaseModel):
+    latex: str
+    results: list[RetrievalResultOut]
+
+
+class MultimodalResultOut(BaseModel):
+    rank: int
+    silver_post_id: int
+    post_id: int
+    post_type_id: int | None = None
+    score: float
+    formula_score: float | None = None
+    text_score: float | None = None
+    text: str | None = None
+    # Post text as segments (formulas resolved to LaTeX), like PostOut.content;
+    # None when the post is not in silver.post_arqmath.
+    content: list[Segment] | None = None
+
+
+class MultimodalOut(BaseModel):
+    query: str
+    formulas: list[str]
+    text_query: str
+    results: list[MultimodalResultOut]

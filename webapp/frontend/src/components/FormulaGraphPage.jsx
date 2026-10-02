@@ -5,7 +5,9 @@ import { fetchFormulaGraph } from "../api";
 import { useMathJaxTypeset } from "../hooks/useMathJax";
 import FormulaGraphView from "./FormulaGraphView";
 
-export default function FormulaGraphPage() {
+// fetchGraph/titlePrefix let the same page serve silver formula_arqmath ids
+// (/formula/:id) and gold.formula ids (/gold_formula/:id).
+export default function FormulaGraphPage({ fetchGraph = fetchFormulaGraph, titlePrefix = "Formula" }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -18,7 +20,7 @@ export default function FormulaGraphPage() {
     setLoading(true);
     setError(null);
     setData(null);
-    fetchFormulaGraph(id)
+    fetchGraph(id)
       .then((res) => {
         if (!cancelled) setData(res);
       })
@@ -31,7 +33,7 @@ export default function FormulaGraphPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, fetchGraph]);
 
   return (
     <div className="container py-4">
@@ -43,7 +45,9 @@ export default function FormulaGraphPage() {
         &larr; Back
       </button>
 
-      <h1 className="mb-3">Formula {id}</h1>
+      <h1 className="mb-3">
+        {titlePrefix} {id}
+      </h1>
 
       {loading && <p className="text-muted">Loading...</p>}
       {error && <div className="alert alert-danger">{error}</div>}
