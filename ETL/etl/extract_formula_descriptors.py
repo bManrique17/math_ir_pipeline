@@ -47,6 +47,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from tqdm import tqdm
 
+from etl.dataset_scope import dataset_post_filter, resolve_dataset_schema
+
 logger = logging.getLogger(__name__)
 
 POST_TABLE = "post_arqmath"
@@ -198,13 +200,19 @@ def _ensure_claim_columns(engine: Engine, silver_schema: str) -> None:
         )
 
 
-def _count_pending(engine: Engine, silver_schema: str, overwrite: bool, limit: int | None) -> int:
+def _count_pending(
+    engine: Engine, silver_schema: str, overwrite: bool, limit: int | None, dataset_id: int | None = None
+) -> int:
     where = f"{TEXT_COLUMN} IS NOT NULL"
     if not overwrite:
         where += f" AND {OUTPUT_COLUMN} IS NULL"
+    params = {}
+    if dataset_id is not None:
+        where += f" AND {dataset_post_filter(ID_COLUMN)}"
+        params["dataset_id"] = dataset_id
     query = f"SELECT COUNT(*) FROM {silver_schema}.{POST_TABLE} WHERE {where}"
     with engine.connect() as conn:
-        count = conn.execute(text(query)).scalar_one()
+        count = conn.execute(text(query), params).scalar_one()
     return count if limit is None else min(count, limit)
 
 
@@ -215,19 +223,28 @@ def _claim_batch(
     batch_size: int,
     stale_after: timedelta,
     worker_id: str,
+    dataset_id: int | None = None,
 ) -> list[tuple[int, str]]:
     """Atomically claim up to batch_size unclaimed pending rows for this worker.
+
+    With dataset_id set, only that dataset's posts are eligible.
 
     Safe to call concurrently from multiple processes/machines: FOR UPDATE SKIP
     LOCKED means two callers never claim the same row, and the claim timestamp
     lets a stale claim (crashed worker) be picked up again after stale_after.
     """
     output_check = "TRUE" if overwrite else f"{OUTPUT_COLUMN} IS NULL"
+    params = {"batch_size": batch_size, "stale_after": stale_after, "worker_id": worker_id}
+    dataset_check = "TRUE"
+    if dataset_id is not None:
+        dataset_check = dataset_post_filter(ID_COLUMN)
+        params["dataset_id"] = dataset_id
     query = text(
         f"WITH claimed AS ("
         f"  SELECT {ID_COLUMN} FROM {silver_schema}.{POST_TABLE}"
         f"  WHERE {TEXT_COLUMN} IS NOT NULL"
         f"    AND ({output_check})"
+        f"    AND ({dataset_check})"
         f"    AND ({CLAIM_COLUMN} IS NULL OR {CLAIM_COLUMN} < now() - :stale_after)"
         f"  ORDER BY {ID_COLUMN}"
         f"  LIMIT :batch_size"
@@ -239,9 +256,7 @@ def _claim_batch(
         f"RETURNING p.{ID_COLUMN}, p.{TEXT_COLUMN}"
     )
     with engine.begin() as conn:
-        rows = conn.execute(
-            query, {"batch_size": batch_size, "stale_after": stale_after, "worker_id": worker_id}
-        ).fetchall()
+        rows = conn.execute(query, params).fetchall()
     return [(row[0], row[1]) for row in rows]
 
 
@@ -285,7 +300,11 @@ def build_formula_descriptors(
     concurrency: int = 4,
     stale_claim_minutes: int = 30,
     worker_id: str | None = None,
+    dataset_id: int | None = None,
 ) -> int:
+    """Extract descriptors for every pending post, or only dataset_id's posts when it is set."""
+    silver_schema = resolve_dataset_schema(engine, dataset_id, silver_schema)
+
     ollama_host = f"http://127.0.0.1:{ollama_port}"
     worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}"
     stale_after = timedelta(minutes=stale_claim_minutes)
@@ -295,7 +314,7 @@ def build_formula_descriptors(
     # Informational only: if other workers are running concurrently against the
     # same schema, this count (and the progress bar built from it) is a snapshot,
     # not this worker's exact share of the work.
-    pending = _count_pending(engine, silver_schema, overwrite, limit)
+    pending = _count_pending(engine, silver_schema, overwrite, limit, dataset_id)
     print(f">>Found {pending} passages to process for {silver_schema}.{POST_TABLE}.{OUTPUT_COLUMN}")
     if not pending:
         return 0
@@ -319,7 +338,7 @@ def build_formula_descriptors(
                 while remaining is None or remaining > 0:
                     batch_size = write_buffer_size if remaining is None else min(write_buffer_size, remaining)
                     batch = _claim_batch(
-                        engine, silver_schema, overwrite, batch_size, stale_after, worker_id
+                        engine, silver_schema, overwrite, batch_size, stale_after, worker_id, dataset_id
                     )
                     if not batch:
                         break

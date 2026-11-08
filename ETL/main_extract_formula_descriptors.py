@@ -31,6 +31,7 @@ def main(cfg: DictConfig) -> None:
         concurrency=cfg.descriptors.concurrency,
         stale_claim_minutes=cfg.descriptors.stale_claim_minutes,
         worker_id=cfg.descriptors.worker_id,
+        dataset_id=cfg.dataset_id,
     )
     print(f">>Formula descriptors written: {n}")
 

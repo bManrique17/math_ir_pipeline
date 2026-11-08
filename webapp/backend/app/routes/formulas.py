@@ -70,3 +70,25 @@ def get_gold_formula_graph(id: int) -> FormulaGraphOut:
         raise HTTPException(status_code=404, detail=f"gold formula id {id} not found")
 
     return FormulaGraphOut(**build_formula_graph_view(row))
+
+
+# Annotated retrieval results are silver.formula_arqmath.silver_id occurrences (not
+# PG_SCHEMA's), so the schemas are fixed here too. Keyed by silver_id, which is
+# unique, rather than by the ARQMath formula id used by /formulas/{id}/graph.
+_SELECT_SILVER_FORMULA_GRAPH = (
+    "SELECT f.silver_id AS id, f.latex, f.opt_nx_dict_annotated, g.opt_nx_dict, g.slt_nx_dict "
+    "FROM silver.formula_arqmath f "
+    "LEFT JOIN gold.formula g ON g.id = f.fk_gold_formula "
+    "WHERE f.silver_id = :id"
+)
+
+
+@router.get("/silver_formulas/{id}/graph", response_model=FormulaGraphOut)
+def get_silver_formula_graph(id: int) -> FormulaGraphOut:
+    with engine.connect() as conn:
+        row = conn.execute(text(_SELECT_SILVER_FORMULA_GRAPH), {"id": id}).fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"silver formula id {id} not found")
+
+    return FormulaGraphOut(**build_formula_graph_view(row))

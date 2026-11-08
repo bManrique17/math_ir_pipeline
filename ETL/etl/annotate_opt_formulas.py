@@ -31,6 +31,8 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.engine import Engine
 from tqdm import tqdm
 
+from etl.dataset_scope import DATASET_GOLD_SCHEMA, dataset_post_filter, resolve_dataset_schema
+
 SILVER_FORMULA_TABLE = "formula_arqmath"
 SILVER_POST_TABLE = "post_arqmath"
 GOLD_FORMULA_TABLE = "formula"
@@ -52,10 +54,18 @@ def _extract_formula_ids(text_placeholders: str | None) -> list[int]:
     return seen
 
 
-def _load_formula_id_to_fk_gold(engine: Engine, silver_schema: str) -> dict[int, int]:
-    query = text(f"SELECT id, fk_gold_formula FROM {silver_schema}.{SILVER_FORMULA_TABLE}")
+def _load_formula_id_to_fk_gold(
+    engine: Engine, silver_schema: str, dataset_id: int | None = None
+) -> dict[int, int]:
+    sql = f"SELECT id, fk_gold_formula FROM {silver_schema}.{SILVER_FORMULA_TABLE}"
+    params = {}
+    if dataset_id is not None:
+        # A post's placeholders only reference formulas extracted from that same
+        # post, so the dataset's posts' own formulas are all that's needed.
+        sql += f" WHERE {dataset_post_filter('fk_silver_post')}"
+        params["dataset_id"] = dataset_id
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn)
+        df = pd.read_sql(text(sql), conn, params=params)
     df = df.dropna(subset=["fk_gold_formula"])
     return dict(zip(df["id"].astype(int), df["fk_gold_formula"].astype(int)))
 
@@ -184,15 +194,26 @@ def build_opt_annotations(
     silver_schema: str,
     gold_schema: str,
     chunk_size: int = 50_000,
+    dataset_id: int | None = None,
 ) -> int:
-    formula_id_to_gold = _load_formula_id_to_fk_gold(engine, silver_schema)
+    """Annotate every post's formulas, or only those of dataset_id's posts when it is set."""
+    silver_schema = resolve_dataset_schema(engine, dataset_id, silver_schema)
+    if dataset_id is not None:
+        gold_schema = DATASET_GOLD_SCHEMA
+
+    formula_id_to_gold = _load_formula_id_to_fk_gold(engine, silver_schema, dataset_id)
     print(f">>Loaded {len(formula_id_to_gold)} formula id -> gold id mappings")
 
-    select_sql = text(
+    select_query = (
         f"SELECT silver_id, normalized_text_placeholders_formula_id, formula_descriptors "
         f"FROM {silver_schema}.{SILVER_POST_TABLE} "
         f"WHERE normalized_text_placeholders_formula_id IS NOT NULL"
     )
+    select_params = {}
+    if dataset_id is not None:
+        select_query += f" AND {dataset_post_filter('silver_id')}"
+        select_params["dataset_id"] = dataset_id
+    select_sql = text(select_query)
     update_sql = text(
         f"UPDATE {silver_schema}.{SILVER_FORMULA_TABLE} "
         f"SET opt_nx_dict_annotated = CAST(:val AS jsonb) "
@@ -202,7 +223,7 @@ def build_opt_annotations(
     total_written = 0
     with engine.connect() as read_conn:
         for chunk in tqdm(
-            pd.read_sql(select_sql, read_conn, chunksize=chunk_size),
+            pd.read_sql(select_sql, read_conn, params=select_params, chunksize=chunk_size),
             desc="annotate_opt_formulas",
             unit="chunk",
         ):

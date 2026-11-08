@@ -10,7 +10,9 @@
     />
     <script>
       window.MathJax = {
-        tex: { inlineMath: [["\\(", "\\)"]] },
+        loader: { load: ["[tex]/noerrors"] },
+        // noerrors: LaTeX that fails to parse is shown as its raw source instead of an error.
+        tex: { inlineMath: [["\\(", "\\)"]], packages: { "[+]": ["noerrors"] } },
         svg: { fontCache: "global" },
       };
     </script>

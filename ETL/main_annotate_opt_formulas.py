@@ -23,6 +23,7 @@ def main(cfg: DictConfig) -> None:
         silver_schema=cfg.silver_schema_prefix,
         gold_schema=cfg.gold_schema_prefix,
         chunk_size=cfg.chunk_size,
+        dataset_id=cfg.dataset_id,
     )
     print(f">>Annotated OPT graphs written: {n}")
 

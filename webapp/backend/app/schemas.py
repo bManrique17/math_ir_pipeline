@@ -107,3 +107,33 @@ class MultimodalOut(BaseModel):
     formulas: list[str]
     text_query: str
     results: list[MultimodalResultOut]
+
+
+class AnnotatedQueryFormulaOut(BaseModel):
+    latex: str
+    # What the LLM extracted for this formula from the query text.
+    descriptors: list[str] = []
+    # Everything attached to it for the search: its own descriptors plus the ones
+    # inherited from other query formulas that appear inside it.
+    annotations: list[str] = []
+
+
+class AnnotatedFormulaResultOut(BaseModel):
+    rank: int
+    # Unique id of the result; equals silver_formula_id.
+    formula_id: str
+    score: float
+    latex: str | None = None
+    annotations: list[str] = []
+    silver_formula_id: int
+    arqmath_formula_id: int | None = None
+    gold_formula_id: int | None = None
+    visual_id: int | None = None
+    silver_post_id: int | None = None
+    post_id: int | None = None
+
+
+class AnnotatedRetrievalOut(BaseModel):
+    query: str
+    query_formulas: list[AnnotatedQueryFormulaOut]
+    results: list[AnnotatedFormulaResultOut]

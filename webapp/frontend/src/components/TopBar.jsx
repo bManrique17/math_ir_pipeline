@@ -33,6 +33,21 @@ export default function TopBar() {
               Multimodal retrieval
             </NavLink>
           </li>
+          <li className="nav-item">
+            <NavLink to="/annotated_retrieval" className={tabClass}>
+              Annotated formula retrieval
+            </NavLink>
+          </li>
+          <li className="nav-item">
+            <NavLink to="/multimodal_retrieval_annotated" className={tabClass}>
+              Annotated multimodal retrieval
+            </NavLink>
+          </li>
+          <li className="nav-item">
+            <NavLink to="/task1" className={tabClass}>
+              ARQMath Task 1
+            </NavLink>
+          </li>
         </ul>
       </div>
     </nav>

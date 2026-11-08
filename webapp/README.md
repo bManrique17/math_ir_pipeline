@@ -1,6 +1,6 @@
 # Formula Descriptors Viewer
 
-Five tabs (top nav):
+Eight tabs (top nav):
 
 - **Posts** (`/`) — `{schema}.post_arqmath` rows: the post text (formulas
   rendered via MathJax) and, in one merged table, every formula referenced in
@@ -25,6 +25,42 @@ Five tabs (top nav):
   text is rendered like the Posts tab, from `silver.post_arqmath` /
   `silver.formula_arqmath` (always `silver`, independent of `PG_SCHEMA`, since
   those are the ids the service returns).
+- **Annotated formula retrieval** (`/annotated_retrieval`) — free-text query
+  with `$latex$` formulas (no `$` = the whole query is one formula), sent to
+  the retrieval service's `retrieve_annotated_formula`, which has an LLM
+  extract a description of each formula from the surrounding text and searches
+  with formula + descriptors together. Shows how the query was understood
+  (per formula: extracted descriptors, and the annotations actually used for
+  the search) and the ranked formula occurrences with their score, LaTeX,
+  annotations and source post; "View graph" opens `/silver_formula/:silver_id`
+  (same graph page, annotated OPT when available).
+- **Annotated multimodal retrieval** (`/multimodal_retrieval_annotated`) —
+  same view as Multimodal retrieval, backed by
+  `retrieve_multimodal_posts_annotated`.
+- **ARQMath Task 1** (`/task1`) — evaluation of the multimodal post
+  retriever on ARQMath Task 1 (answer retrieval), via the retrieval service's
+  `/task1/*` API. Settings (edition 1–3, retriever: `text` ColBERT baseline /
+  isolated formulas + text / annotated formulas + text, top k) live in the URL. The landing page lists the topics (sortable; judged
+  topics only by default) and runs `/task1/evaluate` on the selected topics or
+  all of them (blocking: ~3 min for all with `text`, ~25–35 min with the
+  formula retrievers): aggregate nDCG′ / MAP′ / P′@10
+  cards, judged-coverage warning, failed topics, and per-topic metrics merged
+  into the table. The latest run per settings survives navigation and is kept
+  in `localStorage`. When several retrievers have a finished run (same edition / top k), a
+  comparison table shows their means over the topics they share and per-topic
+  wins/losses, and the topic table gets one nDCG′ column per other retriever
+  with Δ = current − other (sortable). Clicking a topic opens `/task1/topics/:topicId`: the topic
+  (rendered), how it was split into formula/text queries, its metrics, the
+  relevant answers that were missed (indexed vs. not in the index), a strip
+  showing where the judged answers fall over ranks 1..top k, and the ranked
+  answers (rank / prime rank, relevance badge, which modality found it, RRF /
+  formula / text scores, parent question) with judged-only / modality filters
+  and local paging. The full response is fetched once per (topic, settings)
+  and cached in memory.
+
+Both annotated tabs need the retrieval service to be started with the
+annotated model; otherwise it answers `503` and the tab shows that message.
+Queries with text and formulas take a few seconds (LLM call).
 
 Every formula row, in either tab, links to `/formula/:id` — its OPT (operator
 tree) and SLT (symbol layout tree) graphs from the gold layer, rendered
@@ -66,6 +102,10 @@ Configurable via env vars (defaults match `ETL/conf/config.yaml`):
 - `GET /api/gold_formulas/{id}/graph` -- same shape as above, for a `gold.formula` id (raw OPT, never annotated)
 - `GET /api/retrieval?latex=&top_k=` -- `{latex, results: [{rank, formula_id, score, latex}]}`; proxies `RETRIEVAL_URL` and joins `gold.formula` (always `gold`, independent of `PG_GOLD_SCHEMA`) for the LaTeX
 - `GET /api/multimodal_retrieval?query=&top_k=` -- `{query, formulas, text_query, results: [{rank, silver_post_id, post_id, post_type_id, score, formula_score, text_score, text, content}]}`; proxies `RETRIEVAL_URL`, `content` is the post as text/formula segments from `silver` (null if the post isn't there)
+- `GET /api/annotated_retrieval?query=&top_k=` -- `{query, query_formulas: [{latex, descriptors, annotations}], results: [{rank, formula_id, score, latex, annotations, silver_formula_id, arqmath_formula_id, gold_formula_id, visual_id, silver_post_id, post_id}]}`; proxies `retrieve_annotated_formula` as-is (the service already returns LaTeX and annotations)
+- `GET /api/multimodal_retrieval_annotated?query=&top_k=` -- same shape as `/api/multimodal_retrieval`; proxies `retrieve_multimodal_posts_annotated`
+- `GET /api/task1/topics`, `GET /api/task1/evaluate`, `GET /api/task1/topics/{topic_id}/results` -- passthrough (same params, status codes and JSON) to the retrieval service's ARQMath Task 1 API at `RETRIEVAL_URL/task1/...`; no read timeout on `evaluate` (it blocks for up to ~35 min)
+- `GET /api/silver_formulas/{silver_id}/graph` -- same shape as `/api/formulas/{id}/graph`, for a `silver.formula_arqmath.silver_id` (always `silver`/`gold`, independent of `PG_SCHEMA`)
 - `GET /api/vocab/{id}` -- the `public.vocab` row plus `dataset_name` (always `public`, independent of `PG_SCHEMA`)
 
 ## Frontend (React + Vite + Bootstrap)

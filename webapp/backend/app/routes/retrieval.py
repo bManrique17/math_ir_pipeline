@@ -8,7 +8,14 @@ from sqlalchemy import bindparam, text
 
 from ..db import RETRIEVAL_URL, engine
 from ..render import build_segments, extract_formula_ids
-from ..schemas import MultimodalOut, MultimodalResultOut, RetrievalOut, RetrievalResultOut
+from ..schemas import (
+    AnnotatedFormulaResultOut,
+    AnnotatedRetrievalOut,
+    MultimodalOut,
+    MultimodalResultOut,
+    RetrievalOut,
+    RetrievalResultOut,
+)
 from .posts import _load_latex
 
 router = APIRouter()
@@ -37,7 +44,16 @@ def _call_retrieval_service(endpoint: str, params: dict) -> dict:
         with urlopen(url, timeout=_TIMEOUT_SECONDS) as res:
             return json.load(res)
     except HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Retrieval service error ({e.code}): {e.read().decode(errors='replace')}")
+        body = e.read().decode(errors="replace")
+        try:
+            detail = json.loads(body)["detail"]
+        except (ValueError, KeyError, TypeError):
+            detail = body
+        if e.code == 503:
+            # The service is up but that retrieval mode is not enabled (e.g. started
+            # without the annotated model): pass it through as "unavailable".
+            raise HTTPException(status_code=503, detail=detail)
+        raise HTTPException(status_code=502, detail=f"Retrieval service error ({e.code}): {detail}")
     except URLError as e:
         raise HTTPException(status_code=502, detail=f"Retrieval service unreachable at {RETRIEVAL_URL}: {e.reason}")
 
@@ -60,11 +76,24 @@ def retrieve_formulas(latex: str = Query(..., min_length=1), top_k: int = 20) ->
     return RetrievalOut(latex=latex, results=results)
 
 
-@router.get("/multimodal_retrieval", response_model=MultimodalOut)
-def retrieve_posts(query: str = Query(..., min_length=1), top_k: int = 20) -> MultimodalOut:
-    """Text + $latex$ query -> ranked posts, with each post's text segmented like the Posts view."""
+@router.get("/annotated_retrieval", response_model=AnnotatedRetrievalOut)
+def retrieve_annotated_formulas(query: str = Query(..., min_length=1), top_k: int = 20) -> AnnotatedRetrievalOut:
+    """Text + $latex$ query -> ranked formula occurrences, matched on formula + LLM-extracted descriptors.
+
+    The service already returns each result's LaTeX and annotations, so nothing is joined in here.
+    """
     top_k = max(1, min(top_k, _MAX_TOP_K))
-    res = _call_retrieval_service("retrieve_multimodal_posts", {"query": query, "top_k": top_k})
+    res = _call_retrieval_service("retrieve_annotated_formula", {"query": query, "top_k": top_k})
+    results = [
+        AnnotatedFormulaResultOut(rank=rank, **hit) for rank, hit in enumerate(res["results"], start=1)
+    ]
+    return AnnotatedRetrievalOut(query=query, query_formulas=res.get("query_formulas", []), results=results)
+
+
+def _retrieve_posts(endpoint: str, query: str, top_k: int) -> MultimodalOut:
+    """Call a multimodal post endpoint of the service and segment each post's text like the Posts view."""
+    top_k = max(1, min(top_k, _MAX_TOP_K))
+    res = _call_retrieval_service(endpoint, {"query": query, "top_k": top_k})
     hits = res["results"]
 
     post_ids = [hit["silver_post_id"] for hit in hits]
@@ -97,3 +126,15 @@ def retrieve_posts(query: str = Query(..., min_length=1), top_k: int = 20) -> Mu
         text_query=res.get("text_query", ""),
         results=results,
     )
+
+
+@router.get("/multimodal_retrieval", response_model=MultimodalOut)
+def retrieve_posts(query: str = Query(..., min_length=1), top_k: int = 20) -> MultimodalOut:
+    """Text + $latex$ query -> ranked posts."""
+    return _retrieve_posts("retrieve_multimodal_posts", query, top_k)
+
+
+@router.get("/multimodal_retrieval_annotated", response_model=MultimodalOut)
+def retrieve_posts_annotated(query: str = Query(..., min_length=1), top_k: int = 20) -> MultimodalOut:
+    """Same as /multimodal_retrieval, with formulas matched together with their LLM-extracted descriptors."""
+    return _retrieve_posts("retrieve_multimodal_posts_annotated", query, top_k)

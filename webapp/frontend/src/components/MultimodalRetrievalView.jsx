@@ -61,7 +61,12 @@ function PostResult({ result }) {
   );
 }
 
-export default function MultimodalRetrievalView() {
+// fetchPosts/title let the same view serve the plain and the annotated endpoint
+// (same response shape).
+export default function MultimodalRetrievalView({
+  fetchPosts = fetchMultimodalRetrieval,
+  title = "Multimodal retrieval",
+}) {
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(DEFAULT_TOP_K);
   const [data, setData] = useState(null);
@@ -76,7 +81,7 @@ export default function MultimodalRetrievalView() {
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchMultimodalRetrieval(q, topK || DEFAULT_TOP_K));
+      setData(await fetchPosts(q, topK || DEFAULT_TOP_K));
     } catch (e) {
       setError(e.message);
       setData(null);
@@ -87,7 +92,7 @@ export default function MultimodalRetrievalView() {
 
   return (
     <div className="container py-4">
-      <h1 className="mb-4">Multimodal retrieval</h1>
+      <h1 className="mb-4">{title}</h1>
 
       <form className="d-flex align-items-center gap-2 mb-4" onSubmit={handleSubmit}>
         <input

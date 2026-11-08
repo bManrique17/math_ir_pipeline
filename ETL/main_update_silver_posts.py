@@ -13,6 +13,7 @@ def main(cfg: DictConfig) -> None:
         engine,
         silver_schema=cfg.silver_schema_prefix,
         chunk_size=cfg.chunk_size,
+        dataset_id=cfg.dataset_id,
     )
     print(f">>Silver posts updated with fk_gold_formula placeholders: {n}")
 

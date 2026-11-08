@@ -10,9 +10,9 @@ hydra:
 db:
   postgres_connection_string: postgresql://postgres:postgres@localhost:5432/math_ir
 
-bronze_schema_prefix: debug_bronze
-silver_schema_prefix: debug_silver
-gold_schema_prefix: debug_gold
+bronze_schema_prefix: bronze
+silver_schema_prefix: silver
+gold_schema_prefix: gold
 
 bronze_load_formulas: true
 bronze_load_posts: true
@@ -26,11 +26,19 @@ descriptors_load_formula_descriptors: true
 
 silver_load_opt_annotations: true
 
+eval_load_task1: true
+eval_load_task2: true
+
 chunk_size: 50000
+
+# Restrict extract-descriptors / annotate-opt / update-silver-posts to the posts
+# of this public.dataset id (always in the silver/gold schemas); null = all posts.
+dataset_id: 1
 
 paths:
   raw_dir: DEBUG/data_arqmath/formulas
   posts_path: DEBUG/data_arqmath/posts/posts.xml
+  arqmath_eval_dir: /home/ma5339/Documents/ARQMath_eval_renamed
 
 formula_sources:
   - table: latex_arqmath

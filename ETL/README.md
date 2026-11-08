@@ -32,6 +32,7 @@ make extract-descriptors # LLM-extracted formula_descriptors on silver.post_arqm
 make annotate-opt        # builds silver.formula_arqmath.opt_nx_dict_annotated
 make update-silver-posts # fk_gold placeholders in post text
 make create-vocab        # SLT/OPT node + edge vocabs for one dataset -> public.vocab
+make load-eval           # ARQMath Task 1/2 topics + qrels (v1-3) -> public.topics_task* / public.qrels_task*
 ```
 
 Ordering constraints:
@@ -39,7 +40,24 @@ Ordering constraints:
 - `gold` must run before `extract-descriptors`, `annotate-opt`, and `update-silver-posts` (all three depend on `fk_gold_formula` and/or the gold formula table).
 - `annotate-opt` must run after **both** `gold` (for the OPT trees) and `extract-descriptors` (for the sentences to annotate with) — it's what actually does the work described below.
 - `create-vocab` needs `gold` plus the dataset's rows in `public.dataset` / `public.datasetxgold_formula` (always reads `gold.formula`, whatever `gold_schema_prefix` is, since that's what the link table's FK points to).
+- `load-eval` only needs `silver.formula_arqmath` (for `qrels_task2_formula_id.post_id`; formula ids missing from it get a NULL `post_id`, logged as a warning). It replaces each table's rows per ARQMath version, so it can be rerun.
 - `update-silver-posts` only needs `gold`; its relative order vs. `extract-descriptors`/`annotate-opt` doesn't matter.
+
+`extract-descriptors`, `annotate-opt` and `update-silver-posts` only process the
+posts linked to one `public.dataset` row through `public.datasetxsilver_post`:
+dataset `1` by default (`dataset_id` in the config). Pass `DATASET_ID` to pick
+another one, or `DATASET_ID=null` to process every post:
+
+```bash
+make annotate-opt                  # dataset 1
+make annotate-opt DATASET_ID=2     # dataset 2
+make annotate-opt DATASET_ID=null  # all posts
+```
+
+With a dataset set, these stages always read/write the `silver` and `gold`
+schemas, whatever `silver_schema_prefix`/`gold_schema_prefix` are, because
+that's what the link table's FK points to (a warning is logged if the
+configured schema differs). An unknown dataset id is an error.
 
 To re-run a single stage directly (e.g. against a non-default schema or chunk
 size), call its `main_*.py` with Hydra overrides:
@@ -124,14 +142,17 @@ backfilled by `gold`. Unresolved formulas become `-1`.
 | Key | Meaning |
 |---|---|
 | `db.postgres_connection_string` | Postgres DSN |
-| `bronze_schema_prefix` / `silver_schema_prefix` / `gold_schema_prefix` | schema names each layer reads/writes (defaults are the `debug_*` schemas) |
+| `bronze_schema_prefix` / `silver_schema_prefix` / `gold_schema_prefix` | schema names each layer reads/writes (defaults are `bronze` / `silver` / `gold`; the small `debug_*` copies are still there for trial runs) |
 | `bronze_load_formulas` / `bronze_load_posts` | toggle bronze sub-steps |
 | `silver_load_formulas` / `silver_load_posts` | toggle silver sub-steps (posts needs formulas already loaded) |
 | `gold_load_formulas` | toggle the gold step |
 | `descriptors_load_formula_descriptors` | toggle `extract-descriptors` |
 | `silver_load_opt_annotations` | toggle `annotate-opt` |
 | `chunk_size` | batch size used by most stages for chunked reads/writes |
+| `dataset_id` | restrict `extract-descriptors`/`annotate-opt`/`update-silver-posts` to one `public.dataset` id (default `1`; `null` = all posts); overridden by `make ... DATASET_ID=n` |
 | `paths.raw_dir` / `paths.posts_path` | bronze source locations |
+| `paths.arqmath_eval_dir` | ARQMath eval folder (`Task{1,2}/ARQMath{1,2,3}/`) read by `load-eval` |
+| `eval_load_task1` / `eval_load_task2` | toggle `load-eval` sub-steps |
 | `formula_sources` / `post_sources` | bronze table name <-> source path mapping |
 | `silver_formula` / `silver_post` | which bronze table names silver reads from |
 | `descriptors.ollama_model` | Ollama model tag (default `llama3.2:3b`) |
@@ -151,5 +172,6 @@ nested keys (e.g. `descriptors.ollama_model=llama3.2:1b`).
 ## Other files
 
 - `sql/{bronze,silver,gold}_schema.sql` — `CREATE SCHEMA`/`CREATE TABLE IF NOT EXISTS`, applied at the start of each corresponding stage.
+- `sql/public_eval_schema.sql` — the ARQMath eval tables in `public`, applied by `load-eval`.
 - `etl/` — the actual per-stage logic; `main_*.py` are thin Hydra entry points around it.
 - `bin/set_env.sh` — creates/updates the `etl` conda env (used by `make install`/`reinstall`).
